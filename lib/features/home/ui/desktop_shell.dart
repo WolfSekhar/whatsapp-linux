@@ -45,6 +45,7 @@ class DesktopShell extends StatelessWidget {
                   repository: controller.chatRepository,
                   mediaRepository: controller.mediaRepository,
                   interactionRepository: controller.interactionRepository,
+                  groupRepository: controller.groupRepository,
                 );
               },
             ),

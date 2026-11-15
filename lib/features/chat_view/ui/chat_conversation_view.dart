@@ -1,22 +1,24 @@
 import 'package:material_ui/material_ui.dart';
 import '../../../domain/chat.dart';
 import '../../../domain/repositories/i_chat_repository.dart';
+import '../../../domain/repositories/i_group_repository.dart';
 import '../../../domain/repositories/i_interaction_repository.dart';
 import '../../../domain/repositories/i_media_repository.dart';
 import '../../../theme/app_colors.dart';
+import '../../chat_info/controllers/chat_info_controller.dart';
+import '../../chat_info/ui/chat_info_drawer.dart';
 import '../controllers/conversation_controller.dart';
 import 'chat_header.dart';
 import 'chat_message_list.dart';
-import 'interactions/reply_input_banner.dart';
-import 'media_viewer_dialog.dart';
-import 'message_input_bar.dart';
+import 'conversation_input_area.dart';
 
-/// Full interactive active conversation pane displaying messages and input controls.
+/// Full interactive active conversation pane displaying messages and info drawer.
 class ChatConversationView extends StatefulWidget {
   final Chat chat;
   final IChatRepository repository;
   final IMediaRepository? mediaRepository;
   final IInteractionRepository? interactionRepository;
+  final IGroupRepository? groupRepository;
 
   const ChatConversationView({
     super.key,
@@ -24,6 +26,7 @@ class ChatConversationView extends StatefulWidget {
     required this.repository,
     this.mediaRepository,
     this.interactionRepository,
+    this.groupRepository,
   });
 
   @override
@@ -33,21 +36,27 @@ class ChatConversationView extends StatefulWidget {
 class _ChatConversationViewState extends State<ChatConversationView> {
   final ScrollController _scrollController = ScrollController();
   late ConversationController _controller;
+  ChatInfoController? _infoController;
+  bool _isInfoDrawerOpen = false;
 
   @override
   void initState() {
     super.initState();
-    _initController();
+    _initControllers();
   }
 
-  void _initController() {
+  void _initControllers() {
     _controller = ConversationController(
       repository: widget.repository,
       mediaRepository: widget.mediaRepository,
       interactionRepository: widget.interactionRepository,
       chatJid: widget.chat.jid,
-    );
-    _controller.addListener(_scrollToBottom);
+    )..addListener(_scrollToBottom);
+
+    final repo = widget.groupRepository;
+    if (repo != null) {
+      _infoController = ChatInfoController(chat: widget.chat, repository: repo);
+    }
   }
 
   @override
@@ -56,7 +65,9 @@ class _ChatConversationViewState extends State<ChatConversationView> {
     if (oldWidget.chat.jid != widget.chat.jid) {
       _controller.removeListener(_scrollToBottom);
       _controller.dispose();
-      _initController();
+      _infoController?.dispose();
+      _initControllers();
+      _isInfoDrawerOpen = false;
     }
   }
 
@@ -77,45 +88,39 @@ class _ChatConversationViewState extends State<ChatConversationView> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = isDark ? AppColors.darkBackground : const Color(0xFFEFEAE2);
 
-    return Column(
+    return Row(
       children: [
-        ChatHeader(chat: widget.chat),
-        const Divider(height: 1),
         Expanded(
-          child: Container(
-            color: bg,
-            child: ListenableBuilder(
-              listenable: _controller,
-              builder: (context, _) => ChatMessageList(
-                scrollController: _scrollController,
-                controller: _controller,
+          child: Column(
+            children: [
+              ChatHeader(
                 chat: widget.chat,
+                onInfoTap: () => setState(() => _isInfoDrawerOpen = !_isInfoDrawerOpen),
               ),
-            ),
-          ),
-        ),
-        const Divider(height: 1),
-        ListenableBuilder(
-          listenable: _controller,
-          builder: (context, _) {
-            final quote = _controller.activeQuote;
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (quote != null)
-                  ReplyInputBanner(quoted: quote, onDismiss: _controller.clearReply),
-                MessageInputBar(
-                  onSend: _controller.sendMessage,
-                  onAttach: () => MediaViewerDialog.show(
-                    context,
-                    title: 'Media Viewer',
-                    subtitle: widget.chat.name,
+              const Divider(height: 1),
+              Expanded(
+                child: Container(
+                  color: bg,
+                  child: ListenableBuilder(
+                    listenable: _controller,
+                    builder: (context, _) => ChatMessageList(
+                      scrollController: _scrollController,
+                      controller: _controller,
+                      chat: widget.chat,
+                    ),
                   ),
                 ),
-              ],
-            );
-          },
+              ),
+              const Divider(height: 1),
+              ConversationInputArea(controller: _controller, chatName: widget.chat.name),
+            ],
+          ),
         ),
+        if (_isInfoDrawerOpen && _infoController != null)
+          ChatInfoDrawer(
+            controller: _infoController!,
+            onClose: () => setState(() => _isInfoDrawerOpen = false),
+          ),
       ],
     );
   }
@@ -124,6 +129,7 @@ class _ChatConversationViewState extends State<ChatConversationView> {
   void dispose() {
     _controller.removeListener(_scrollToBottom);
     _controller.dispose();
+    _infoController?.dispose();
     _scrollController.dispose();
     super.dispose();
   }

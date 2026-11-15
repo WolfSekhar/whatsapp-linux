@@ -7,8 +7,13 @@ import 'media_viewer_dialog.dart';
 /// Top bar for an active conversation pane showing participant info and actions.
 class ChatHeader extends StatelessWidget {
   final Chat chat;
+  final VoidCallback? onInfoTap;
 
-  const ChatHeader({super.key, required this.chat});
+  const ChatHeader({
+    super.key,
+    required this.chat,
+    this.onInfoTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -24,20 +29,39 @@ class ChatHeader extends StatelessWidget {
       color: panelBg,
       child: Row(
         children: [
-          CircleAvatar(
-            radius: 18,
-            backgroundColor: AppColors.tealGreen,
-            child: Text(
-              initial,
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-            ),
-          ),
-          const SizedBox(width: 12),
           Expanded(
-            child: Text(
-              name,
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-              overflow: TextOverflow.ellipsis,
+            child: InkWell(
+              onTap: onInfoTap,
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 18,
+                      backgroundColor: AppColors.tealGreen,
+                      child: Text(
+                        initial,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        name,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
           IconButton(
@@ -53,6 +77,11 @@ class ChatHeader extends StatelessWidget {
             icon: const Icon(FluentIcons.search_24_regular, size: 20),
             tooltip: 'Search in Chat',
             onPressed: () {},
+          ),
+          IconButton(
+            icon: const Icon(FluentIcons.info_24_regular, size: 20),
+            tooltip: 'Chat Details',
+            onPressed: onInfoTap,
           ),
         ],
       ),

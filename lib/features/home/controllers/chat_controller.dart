@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../../../domain/chat.dart';
 import '../../../domain/chat_repository.dart';
 import '../../../domain/models/chat_filter_type.dart';
+import '../../../domain/repositories/i_group_repository.dart';
 import '../../../domain/repositories/i_interaction_repository.dart';
 import '../../../domain/repositories/i_media_repository.dart';
 
@@ -11,6 +12,7 @@ class ChatController extends ChangeNotifier {
   final IChatRepository chatRepository;
   final IMediaRepository? mediaRepository;
   final IInteractionRepository? interactionRepository;
+  final IGroupRepository? groupRepository;
   StreamSubscription<List<Chat>>? _subscription;
 
   List<Chat> _allChats = const [];
@@ -23,6 +25,7 @@ class ChatController extends ChangeNotifier {
     required this.chatRepository,
     this.mediaRepository,
     this.interactionRepository,
+    this.groupRepository,
   }) {
     _init();
   }
@@ -51,14 +54,12 @@ class ChatController extends ChangeNotifier {
   int get archivedCount => _allChats.where((c) => c.isArchived).length;
   int get unreadCount => _allChats.where((c) => !c.isArchived && c.unreadCount > 0).length;
 
-  /// Sets category filter pill.
   void setFilter(ChatFilterType filter) {
     if (_activeFilter == filter) return;
     _activeFilter = filter;
     notifyListeners();
   }
 
-  /// Returns filtered and sorted chats.
   List<Chat> get chats {
     final query = _searchQuery.trim().toLowerCase();
     final list = _allChats.where((c) {
