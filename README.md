@@ -1,17 +1,33 @@
-# flutter_whatsapp
+# WhatsApp for Linux
 
-A new Flutter project.
+A lightweight, native WhatsApp desktop client for Linux built with Flutter Desktop and a Go daemon powered by `whatsmeow`.
 
-## Getting Started
+## Features
 
-This project is a starting point for a Flutter application.
+- **Wayland Native**: Optimized for Wayland with native Server-Side Decorations (KDE Plasma & GNOME).
+- **Lightweight Daemon**: High-performance Go engine using the WhatsApp Multi-Device Protocol.
+- **Fluent UI Icons**: Clean desktop iconography powered by `fluentui_system_icons`.
+- **Local SQLite Cache**: Instant startup and offline history cached in `~/.local/share/whatsapp-linux/cache.db`.
+- **Persistent Session**: Encrypted credentials stored in `~/.local/share/whatsapp-linux/session.db`.
 
-A few resources to get you started if this is your first Flutter project:
+## Prerequisites
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+- Flutter SDK (with Linux desktop support)
+- Go 1.22+
+- GTK 3 & SQLite development libraries
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Quick Start
+
+```bash
+# Build the Go background daemon
+cd daemon && go build -o ../build/wa-daemon ./cmd && cd ..
+
+# Run the Flutter application
+GDK_BACKEND=wayland flutter run -d linux
+```
+
+## Architecture
+
+- **Frontend**: Flutter Desktop Linux (`lib/`)
+- **Backend Daemon**: Go `whatsmeow` process (`daemon/`)
+- **IPC Protocol**: JSON-RPC over standard input/output

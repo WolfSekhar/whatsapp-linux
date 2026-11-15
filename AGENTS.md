@@ -33,6 +33,11 @@ A native, lightweight, privacy-focused WhatsApp desktop client for Linux built u
    - Interactive chat pane with speech bubbles, delivery status indicators, and keyboard message input bar (Enter to send).
    - Dedicated modal media viewer for end-to-end encrypted images and documents.
 9. **Human-Only Live Messaging**: Automated systems are strictly forbidden from transmitting real messages.
+10. **Git Version Control & Push Policy**:
+   - Repository: `https://github.com/WolfSekhar/whatsapp-linux.git`
+   - **Automatic Commits**: After completing any meaningful code change, feature, fix, or refactor, agents MUST automatically stage and create a clean git commit.
+   - **Push Policy**: **NEVER push to the remote repository unless explicitly requested by the USER.**
+   - **Privacy Protection**: Ensure session databases (`*.db`, `session.db`, `cache.db`) are strictly ignored and never committed.
 
 ---
 
