@@ -33,4 +33,12 @@ type Client interface {
 	UpdateGroupTopic(ctx context.Context, groupJID, topic string) error
 	UpdateGroupParticipants(ctx context.Context, groupJID, action string, participants []string) error
 	LeaveGroup(ctx context.Context, groupJID string) error
+
+	// Settings & Profile actions
+	GetProfile(ctx context.Context) (*ipc.ProfileResult, error)
+	UpdateProfile(ctx context.Context, name, about string) error
+	GetPrivacySettings(ctx context.Context) (*ipc.PrivacyResult, error)
+	SetPrivacySetting(ctx context.Context, category, value string) error
+	GetBlocklist(ctx context.Context) ([]string, error)
+	UpdateBlocklist(ctx context.Context, jid string, block bool) error
 }

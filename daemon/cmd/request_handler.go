@@ -40,6 +40,8 @@ func HandleRequest(ctx context.Context, req ipc.Request, client wa.Client, write
 		HandleChatRequest(ctx, req, client, writer)
 	case ipc.ActionGetGroupInfo, ipc.ActionUpdateGroupTopic, ipc.ActionUpdateParticipants, ipc.ActionLeaveGroup:
 		HandleGroupRequest(ctx, req, client, writer)
+	case ipc.ActionGetProfile, ipc.ActionUpdateProfile, ipc.ActionGetPrivacy, ipc.ActionSetPrivacy, ipc.ActionGetBlocklist, ipc.ActionUpdateBlocklist:
+		HandleSettingsRequest(ctx, req, client, writer)
 	case ipc.ActionLogout:
 		handleLogout(ctx, req, client, writer)
 	case ipc.ActionDownloadMedia, ipc.ActionSendMedia:

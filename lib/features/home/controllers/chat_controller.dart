@@ -1,11 +1,15 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import '../../../core/notifications/linux_notification_service.dart';
 import '../../../domain/chat.dart';
 import '../../../domain/chat_repository.dart';
 import '../../../domain/models/chat_filter_type.dart';
+import '../../../domain/models/chat_sorter.dart';
 import '../../../domain/repositories/i_group_repository.dart';
 import '../../../domain/repositories/i_interaction_repository.dart';
 import '../../../domain/repositories/i_media_repository.dart';
+import '../../../domain/repositories/i_settings_repository.dart';
+import '../../settings/controllers/settings_controller.dart';
 
 /// State management controller for desktop chat navigation and search.
 class ChatController extends ChangeNotifier {
@@ -13,7 +17,11 @@ class ChatController extends ChangeNotifier {
   final IMediaRepository? mediaRepository;
   final IInteractionRepository? interactionRepository;
   final IGroupRepository? groupRepository;
+  final ISettingsRepository? settingsRepository;
+  final SettingsController? settingsController;
+  final LinuxNotificationService? notificationService;
   StreamSubscription<List<Chat>>? _subscription;
+  StreamSubscription<dynamic>? _msgSubscription;
 
   List<Chat> _allChats = const [];
   String? _selectedChatJid;
@@ -26,6 +34,9 @@ class ChatController extends ChangeNotifier {
     this.mediaRepository,
     this.interactionRepository,
     this.groupRepository,
+    this.settingsRepository,
+    this.settingsController,
+    this.notificationService,
   }) {
     _init();
   }
@@ -34,16 +45,18 @@ class ChatController extends ChangeNotifier {
     _allChats = chatRepository.currentChats;
     if (_allChats.isNotEmpty) _isLoading = false;
     _subscription = chatRepository.chatsStream.listen(
-      (chats) {
-        _allChats = chats;
-        _isLoading = false;
-        notifyListeners();
-      },
-      onError: (_) {
-        _isLoading = false;
-        notifyListeners();
-      },
+      (chats) { _allChats = chats; _isLoading = false; notifyListeners(); },
+      onError: (_) { _isLoading = false; notifyListeners(); },
     );
+    _msgSubscription = chatRepository.messageStream.listen((msg) {
+      if (!msg.isFromMe) {
+        notificationService?.showNotification(
+          title: msg.chatJid,
+          body: msg.text,
+          preferences: settingsController?.preferences,
+        );
+      }
+    });
   }
 
   String? get selectedChatJid => _selectedChatJid;
@@ -63,24 +76,15 @@ class ChatController extends ChangeNotifier {
   List<Chat> get chats {
     final query = _searchQuery.trim().toLowerCase();
     final list = _allChats.where((c) {
-      final isArch = _activeFilter == ChatFilterType.archived;
-      if (isArch ? !c.isArchived : c.isArchived) return false;
+      if (_activeFilter == ChatFilterType.archived ? !c.isArchived : c.isArchived) return false;
       if (_activeFilter == ChatFilterType.unread && c.unreadCount <= 0) return false;
       if (_activeFilter == ChatFilterType.groups && !c.isGroup) return false;
       if (query.isNotEmpty) {
-        final nameMatch = c.name.toLowerCase().contains(query);
-        final msgMatch = c.lastMessage?.toLowerCase().contains(query) ?? false;
-        if (!nameMatch && !msgMatch) return false;
+        return c.name.toLowerCase().contains(query) || (c.lastMessage?.toLowerCase().contains(query) ?? false);
       }
       return true;
     }).toList();
-
-    list.sort((a, b) {
-      final aPin = a.isPinned ? 1 : 0;
-      final bPin = b.isPinned ? 1 : 0;
-      if (aPin != bPin) return bPin.compareTo(aPin);
-      return b.lastMessageTimestamp.compareTo(a.lastMessageTimestamp);
-    });
+    sortChats(list);
     return list;
   }
 
@@ -122,9 +126,7 @@ class ChatController extends ChangeNotifier {
   Future<void> markAsRead(String jid) => chatRepository.markAsRead(jid);
 
   Future<void> markAsUnread(String jid) async {
-    try {
-      await (chatRepository as dynamic).markAsUnread(jid);
-    } catch (_) {}
+    try { await (chatRepository as dynamic).markAsUnread(jid); } catch (_) {}
     final idx = _allChats.indexWhere((c) => c.jid == jid);
     if (idx != -1) {
       final list = List<Chat>.from(_allChats);
@@ -137,6 +139,7 @@ class ChatController extends ChangeNotifier {
   @override
   void dispose() {
     _subscription?.cancel();
+    _msgSubscription?.cancel();
     super.dispose();
   }
 }

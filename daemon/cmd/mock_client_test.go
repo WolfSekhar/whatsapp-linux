@@ -12,6 +12,12 @@ type mockClient struct {
 	updateGroupTopicFunc        func(ctx context.Context, groupJID, topic string) error
 	updateGroupParticipantsFunc func(ctx context.Context, groupJID, action string, participants []string) error
 	leaveGroupFunc              func(ctx context.Context, groupJID string) error
+	getProfileFunc              func(ctx context.Context) (*ipc.ProfileResult, error)
+	updateProfileFunc           func(ctx context.Context, name, about string) error
+	getPrivacyFunc              func(ctx context.Context) (*ipc.PrivacyResult, error)
+	setPrivacyFunc              func(ctx context.Context, category, value string) error
+	getBlocklistFunc            func(ctx context.Context) ([]string, error)
+	updateBlocklistFunc         func(ctx context.Context, jid string, block bool) error
 }
 
 func (m *mockClient) Login(ctx context.Context) error                                     { return nil }
@@ -50,30 +56,43 @@ func (m *mockClient) SendMedia(ctx context.Context, params ipc.SendMediaParams) 
 }
 
 func (m *mockClient) GetGroupInfo(ctx context.Context, groupJID string) (*ipc.GroupInfoResult, error) {
-	if m.getGroupInfoFunc != nil {
-		return m.getGroupInfoFunc(ctx, groupJID)
-	}
+	if m.getGroupInfoFunc != nil { return m.getGroupInfoFunc(ctx, groupJID) }
 	return nil, nil
 }
-
 func (m *mockClient) UpdateGroupTopic(ctx context.Context, groupJID, topic string) error {
-	if m.updateGroupTopicFunc != nil {
-		return m.updateGroupTopicFunc(ctx, groupJID, topic)
-	}
+	if m.updateGroupTopicFunc != nil { return m.updateGroupTopicFunc(ctx, groupJID, topic) }
 	return nil
 }
-
 func (m *mockClient) UpdateGroupParticipants(ctx context.Context, groupJID, action string, participants []string) error {
-	if m.updateGroupParticipantsFunc != nil {
-		return m.updateGroupParticipantsFunc(ctx, groupJID, action, participants)
-	}
+	if m.updateGroupParticipantsFunc != nil { return m.updateGroupParticipantsFunc(ctx, groupJID, action, participants) }
 	return nil
 }
-
 func (m *mockClient) LeaveGroup(ctx context.Context, groupJID string) error {
-	if m.leaveGroupFunc != nil {
-		return m.leaveGroupFunc(ctx, groupJID)
-	}
+	if m.leaveGroupFunc != nil { return m.leaveGroupFunc(ctx, groupJID) }
+	return nil
+}
+func (m *mockClient) GetProfile(ctx context.Context) (*ipc.ProfileResult, error) {
+	if m.getProfileFunc != nil { return m.getProfileFunc(ctx) }
+	return &ipc.ProfileResult{}, nil
+}
+func (m *mockClient) UpdateProfile(ctx context.Context, name, about string) error {
+	if m.updateProfileFunc != nil { return m.updateProfileFunc(ctx, name, about) }
+	return nil
+}
+func (m *mockClient) GetPrivacySettings(ctx context.Context) (*ipc.PrivacyResult, error) {
+	if m.getPrivacyFunc != nil { return m.getPrivacyFunc(ctx) }
+	return &ipc.PrivacyResult{}, nil
+}
+func (m *mockClient) SetPrivacySetting(ctx context.Context, category, value string) error {
+	if m.setPrivacyFunc != nil { return m.setPrivacyFunc(ctx, category, value) }
+	return nil
+}
+func (m *mockClient) GetBlocklist(ctx context.Context) ([]string, error) {
+	if m.getBlocklistFunc != nil { return m.getBlocklistFunc(ctx) }
+	return []string{}, nil
+}
+func (m *mockClient) UpdateBlocklist(ctx context.Context, jid string, block bool) error {
+	if m.updateBlocklistFunc != nil { return m.updateBlocklistFunc(ctx, jid, block) }
 	return nil
 }
 
