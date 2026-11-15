@@ -38,6 +38,8 @@ func HandleRequest(ctx context.Context, req ipc.Request, client wa.Client, write
 		_ = writer.WriteResponse(ipc.Response{ID: req.ID, Result: map[string]bool{"success": true}})
 	case ipc.ActionPinChat, ipc.ActionArchiveChat, ipc.ActionMuteChat, ipc.ActionClearChat, ipc.ActionDeleteChat:
 		HandleChatRequest(ctx, req, client, writer)
+	case ipc.ActionGetGroupInfo, ipc.ActionUpdateGroupTopic, ipc.ActionUpdateParticipants, ipc.ActionLeaveGroup:
+		HandleGroupRequest(ctx, req, client, writer)
 	case ipc.ActionLogout:
 		handleLogout(ctx, req, client, writer)
 	case ipc.ActionDownloadMedia, ipc.ActionSendMedia:
