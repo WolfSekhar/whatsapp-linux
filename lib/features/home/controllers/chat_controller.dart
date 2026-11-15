@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../../../domain/chat.dart';
 import '../../../domain/chat_repository.dart';
+import '../../../domain/models/chat_filter_type.dart';
 import '../../../domain/repositories/i_interaction_repository.dart';
 import '../../../domain/repositories/i_media_repository.dart';
 
@@ -15,6 +16,7 @@ class ChatController extends ChangeNotifier {
   List<Chat> _allChats = const [];
   String? _selectedChatJid;
   String _searchQuery = '';
+  ChatFilterType _activeFilter = ChatFilterType.all;
   bool _isLoading = true;
 
   ChatController({
@@ -28,7 +30,6 @@ class ChatController extends ChangeNotifier {
   void _init() {
     _allChats = chatRepository.currentChats;
     if (_allChats.isNotEmpty) _isLoading = false;
-
     _subscription = chatRepository.chatsStream.listen(
       (chats) {
         _allChats = chats;
@@ -44,20 +45,44 @@ class ChatController extends ChangeNotifier {
 
   String? get selectedChatJid => _selectedChatJid;
   String get searchQuery => _searchQuery;
+  ChatFilterType get activeFilter => _activeFilter;
   bool get isLoading => _isLoading;
+  bool get hasArchivedChats => _allChats.any((c) => c.isArchived);
+  int get archivedCount => _allChats.where((c) => c.isArchived).length;
+  int get unreadCount => _allChats.where((c) => !c.isArchived && c.unreadCount > 0).length;
 
-  /// Returns filtered chats matching search query.
-  List<Chat> get chats {
-    if (_searchQuery.trim().isEmpty) return _allChats;
-    final query = _searchQuery.toLowerCase();
-    return _allChats.where((chat) {
-      final nameMatches = chat.name.toLowerCase().contains(query);
-      final msgMatches = chat.lastMessage?.toLowerCase().contains(query) ?? false;
-      return nameMatches || msgMatches;
-    }).toList();
+  /// Sets category filter pill.
+  void setFilter(ChatFilterType filter) {
+    if (_activeFilter == filter) return;
+    _activeFilter = filter;
+    notifyListeners();
   }
 
-  /// Currently active selected chat session.
+  /// Returns filtered and sorted chats.
+  List<Chat> get chats {
+    final query = _searchQuery.trim().toLowerCase();
+    final list = _allChats.where((c) {
+      final isArch = _activeFilter == ChatFilterType.archived;
+      if (isArch ? !c.isArchived : c.isArchived) return false;
+      if (_activeFilter == ChatFilterType.unread && c.unreadCount <= 0) return false;
+      if (_activeFilter == ChatFilterType.groups && !c.isGroup) return false;
+      if (query.isNotEmpty) {
+        final nameMatch = c.name.toLowerCase().contains(query);
+        final msgMatch = c.lastMessage?.toLowerCase().contains(query) ?? false;
+        if (!nameMatch && !msgMatch) return false;
+      }
+      return true;
+    }).toList();
+
+    list.sort((a, b) {
+      final aPin = a.isPinned ? 1 : 0;
+      final bPin = b.isPinned ? 1 : 0;
+      if (aPin != bPin) return bPin.compareTo(aPin);
+      return b.lastMessageTimestamp.compareTo(a.lastMessageTimestamp);
+    });
+    return list;
+  }
+
   Chat? get selectedChat {
     final jid = _selectedChatJid;
     if (jid == null) return null;
@@ -68,31 +93,45 @@ class ChatController extends ChangeNotifier {
     }
   }
 
-  /// Selects a chat by JID and marks it as read.
   void selectChat(String? jid) {
     if (_selectedChatJid == jid) return;
     _selectedChatJid = jid;
-    if (jid != null) {
-      chatRepository.markAsRead(jid);
-    }
+    if (jid != null) chatRepository.markAsRead(jid);
     notifyListeners();
   }
 
-  /// Updates search filter query.
   void setSearchQuery(String query) {
     _searchQuery = query;
     notifyListeners();
   }
 
-  /// Clears active search filter.
   void clearSearch() {
     if (_searchQuery.isEmpty) return;
     _searchQuery = '';
     notifyListeners();
   }
 
-  /// Manually triggers a reload of chats.
   Future<void> refresh() => chatRepository.fetchChats();
+  Future<void> pinChat(String jid, bool pin) => chatRepository.pinChat(jid, pin);
+  Future<void> archiveChat(String jid, bool archive) => chatRepository.archiveChat(jid, archive);
+  Future<void> muteChat(String jid, {int duration = 0, bool mute = true}) =>
+      chatRepository.muteChat(jid, durationSeconds: duration, mute: mute);
+  Future<void> clearChat(String jid) => chatRepository.clearChat(jid);
+  Future<void> deleteChat(String jid) => chatRepository.deleteChat(jid);
+  Future<void> markAsRead(String jid) => chatRepository.markAsRead(jid);
+
+  Future<void> markAsUnread(String jid) async {
+    try {
+      await (chatRepository as dynamic).markAsUnread(jid);
+    } catch (_) {}
+    final idx = _allChats.indexWhere((c) => c.jid == jid);
+    if (idx != -1) {
+      final list = List<Chat>.from(_allChats);
+      list[idx] = list[idx].copyWith(unreadCount: 1);
+      _allChats = list;
+      notifyListeners();
+    }
+  }
 
   @override
   void dispose() {

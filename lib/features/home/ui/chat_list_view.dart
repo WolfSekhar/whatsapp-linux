@@ -1,10 +1,16 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:yaru/yaru.dart';
+import '../../../domain/chat.dart';
+import '../../../domain/models/chat_filter_type.dart';
 import '../controllers/chat_controller.dart';
+import 'archived_row_tile.dart';
 import 'chat_tile.dart';
+import 'chat_tile_action_handler.dart';
+import 'chat_tile_context_menu.dart';
+import 'filters/chat_filter_pills.dart';
 
-/// Conversation list pane styled with desktop search and actions.
+/// Conversation list pane styled with desktop search, filter pills, and context actions.
 class ChatListView extends StatelessWidget {
   final ChatController controller;
 
@@ -16,30 +22,23 @@ class ChatListView extends StatelessWidget {
       listenable: controller,
       builder: (context, _) {
         final chats = controller.chats;
+        final isArchived = controller.activeFilter == ChatFilterType.archived;
 
         return Column(
           children: [
-            _buildHeader(context),
+            _buildHeader(isArchived),
             _buildSearchBox(),
+            if (!isArchived)
+              ChatFilterPills(
+                activeFilter: controller.activeFilter,
+                unreadCount: controller.unreadCount,
+                onSelectFilter: controller.setFilter,
+              ),
             const Divider(height: 1),
             Expanded(
               child: controller.isLoading
                   ? const Center(child: CircularProgressIndicator())
-                  : chats.isEmpty
-                      ? _buildEmptySearch()
-                      : ListView.separated(
-                          itemCount: chats.length,
-                          separatorBuilder: (context, _) => const Divider(height: 1),
-                          itemBuilder: (context, index) {
-                            final chat = chats[index];
-                            final isSelected = controller.selectedChatJid == chat.jid;
-                            return ChatTile(
-                              chat: chat,
-                              isSelected: isSelected,
-                              onTap: () => controller.selectChat(chat.jid),
-                            );
-                          },
-                        ),
+                  : _buildList(context, chats, isArchived),
             ),
           ],
         );
@@ -47,31 +46,73 @@ class ChatListView extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
+  Widget _buildList(BuildContext context, List<Chat> chats, bool isArchived) {
+    final showArchived = !isArchived && controller.hasArchivedChats;
+    final total = chats.length + (showArchived ? 1 : 0);
+    if (total == 0) return _buildEmptySearch(isArchived);
+
+    return ListView.separated(
+      itemCount: total,
+      separatorBuilder: (context, _) => const Divider(height: 1),
+      itemBuilder: (context, index) {
+        if (showArchived && index == 0) {
+          return ArchivedRowTile(
+            count: controller.archivedCount,
+            onTap: () => controller.setFilter(ChatFilterType.archived),
+          );
+        }
+        final chat = chats[showArchived ? index - 1 : index];
+        return ChatTile(
+          chat: chat,
+          isSelected: controller.selectedChatJid == chat.jid,
+          onTap: () => controller.selectChat(chat.jid),
+          onSecondaryTapDown: (details) async {
+            final action = await ChatTileContextMenu.show(context, details.globalPosition, chat);
+            if (action != null) {
+              ChatTileActionHandler.handle(action: action, chat: chat, controller: controller);
+            }
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildHeader(bool isArchived) {
     return Container(
       height: 48,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Text(
-            'Chats',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
           Row(
             children: [
-              IconButton(
-                icon: const Icon(FluentIcons.compose_24_regular, size: 18),
-                tooltip: 'New Chat',
-                onPressed: () {},
-              ),
-              IconButton(
-                icon: const Icon(FluentIcons.more_vertical_24_regular, size: 18),
-                tooltip: 'Menu',
-                onPressed: () {},
+              if (isArchived)
+                IconButton(
+                  icon: const Icon(FluentIcons.arrow_left_24_regular, size: 20),
+                  tooltip: 'Back to all chats',
+                  onPressed: () => controller.setFilter(ChatFilterType.all),
+                ),
+              Text(
+                isArchived ? 'Archived' : 'Chats',
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
             ],
           ),
+          if (!isArchived)
+            Row(
+              children: [
+                IconButton(
+                  icon: const Icon(FluentIcons.compose_24_regular, size: 18),
+                  tooltip: 'New Chat',
+                  onPressed: () {},
+                ),
+                IconButton(
+                  icon: const Icon(FluentIcons.more_vertical_24_regular, size: 18),
+                  tooltip: 'Menu',
+                  onPressed: () {},
+                ),
+              ],
+            ),
         ],
       ),
     );
@@ -79,7 +120,7 @@ class ChatListView extends StatelessWidget {
 
   Widget _buildSearchBox() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       child: YaruSearchField(
         hintText: 'Search or start new chat',
         autofocus: false,
@@ -89,13 +130,13 @@ class ChatListView extends StatelessWidget {
     );
   }
 
-  Widget _buildEmptySearch() {
-    return const Center(
+  Widget _buildEmptySearch(bool isArchived) {
+    return Center(
       child: Padding(
-        padding: EdgeInsets.all(24),
+        padding: const EdgeInsets.all(24),
         child: Text(
-          'No chats found',
-          style: TextStyle(color: Colors.grey, fontSize: 13),
+          isArchived ? 'No archived chats' : 'No chats found',
+          style: const TextStyle(color: Colors.grey, fontSize: 13),
         ),
       ),
     );

@@ -32,7 +32,7 @@ class LocalDatabase {
     return await dbFactory.openDatabase(
       dbPath,
       options: OpenDatabaseOptions(
-        version: 3,
+        version: 4,
         onCreate: (db, version) async {
           await db.execute('''
             CREATE TABLE IF NOT EXISTS chats (
@@ -116,6 +116,11 @@ class LocalDatabase {
               )
             ''');
             await db.execute('CREATE INDEX IF NOT EXISTS idx_reaction_msg ON message_reactions(msg_id)');
+          }
+          if (oldVersion < 4) {
+            await _runSafe(db, 'ALTER TABLE chats ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0');
+            await _runSafe(db, 'ALTER TABLE chats ADD COLUMN is_archived INTEGER NOT NULL DEFAULT 0');
+            await _runSafe(db, 'ALTER TABLE chats ADD COLUMN mute_until INTEGER NOT NULL DEFAULT 0');
           }
         },
       ),
