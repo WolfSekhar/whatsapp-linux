@@ -6,6 +6,7 @@ import 'core/ipc/daemon_process_manager.dart';
 import 'core/ipc/ipc_service.dart';
 import 'domain/repositories/auth_repository.dart';
 import 'domain/repositories/chat_repository.dart';
+import 'domain/repositories/interaction_repository.dart';
 import 'domain/repositories/media_repository.dart';
 import 'features/auth/controllers/auth_controller.dart';
 import 'features/auth/ui/auth_screen.dart';
@@ -27,11 +28,13 @@ Future<void> main() async {
   final authRepo = AuthRepository(ipcService);
   final chatRepo = ChatRepository(ipcService);
   final mediaRepo = MediaRepository(ipcService);
+  final interactionRepo = InteractionRepository(ipcService);
 
   final authController = AuthController(authRepository: authRepo);
   final chatController = ChatController(
     chatRepository: chatRepo,
     mediaRepository: mediaRepo,
+    interactionRepository: interactionRepo,
   );
 
   runApp(
@@ -41,6 +44,7 @@ Future<void> main() async {
       onDispose: () async {
         authController.dispose();
         chatController.dispose();
+        interactionRepo.dispose();
         await ipcService.dispose();
         await processManager.stop();
       },

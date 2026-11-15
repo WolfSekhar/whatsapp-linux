@@ -1,12 +1,14 @@
 import 'package:material_ui/material_ui.dart';
 import '../../../domain/chat.dart';
 import '../../../domain/repositories/i_chat_repository.dart';
+import '../../../domain/repositories/i_interaction_repository.dart';
 import '../../../domain/repositories/i_media_repository.dart';
 import '../../../theme/app_colors.dart';
 import '../controllers/conversation_controller.dart';
 import 'chat_header.dart';
+import 'chat_message_list.dart';
+import 'interactions/reply_input_banner.dart';
 import 'media_viewer_dialog.dart';
-import 'message_bubble.dart';
 import 'message_input_bar.dart';
 
 /// Full interactive active conversation pane displaying messages and input controls.
@@ -14,12 +16,14 @@ class ChatConversationView extends StatefulWidget {
   final Chat chat;
   final IChatRepository repository;
   final IMediaRepository? mediaRepository;
+  final IInteractionRepository? interactionRepository;
 
   const ChatConversationView({
     super.key,
     required this.chat,
     required this.repository,
     this.mediaRepository,
+    this.interactionRepository,
   });
 
   @override
@@ -40,6 +44,7 @@ class _ChatConversationViewState extends State<ChatConversationView> {
     _controller = ConversationController(
       repository: widget.repository,
       mediaRepository: widget.mediaRepository,
+      interactionRepository: widget.interactionRepository,
       chatJid: widget.chat.jid,
     );
     _controller.addListener(_scrollToBottom);
@@ -81,54 +86,35 @@ class _ChatConversationViewState extends State<ChatConversationView> {
             color: bg,
             child: ListenableBuilder(
               listenable: _controller,
-              builder: (context, _) {
-                if (_controller.isLoading) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                final msgs = _controller.messages;
-                if (msgs.isEmpty) {
-                  return Center(
-                    child: Text(
-                      'No messages yet. Type below to start.',
-                      style: TextStyle(
-                        color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
-                      ),
-                    ),
-                  );
-                }
-                return ListView.builder(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  itemCount: msgs.length,
-                  itemBuilder: (context, i) {
-                    final msg = msgs[i];
-                    return MessageBubble(
-                      message: msg,
-                      onMediaTap: () => MediaViewerDialog.show(
-                        context,
-                        title: msg.fileName ?? widget.chat.name,
-                        subtitle: widget.chat.name,
-                        mediaType: msg.mediaType,
-                        localPath: msg.localPath,
-                        onDownload: () => _controller.downloadMedia(msg),
-                      ),
-                      onOpen: () => _controller.openMedia(msg),
-                      onDownload: () => _controller.downloadMedia(msg),
-                    );
-                  },
-                );
-              },
+              builder: (context, _) => ChatMessageList(
+                scrollController: _scrollController,
+                controller: _controller,
+                chat: widget.chat,
+              ),
             ),
           ),
         ),
         const Divider(height: 1),
-        MessageInputBar(
-          onSend: _controller.sendMessage,
-          onAttach: () => MediaViewerDialog.show(
-            context,
-            title: 'Media Viewer',
-            subtitle: widget.chat.name,
-          ),
+        ListenableBuilder(
+          listenable: _controller,
+          builder: (context, _) {
+            final quote = _controller.activeQuote;
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (quote != null)
+                  ReplyInputBanner(quoted: quote, onDismiss: _controller.clearReply),
+                MessageInputBar(
+                  onSend: _controller.sendMessage,
+                  onAttach: () => MediaViewerDialog.show(
+                    context,
+                    title: 'Media Viewer',
+                    subtitle: widget.chat.name,
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ],
     );

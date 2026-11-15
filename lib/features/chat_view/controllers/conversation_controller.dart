@@ -1,15 +1,21 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../../../domain/models/message_item.dart';
+import '../../../domain/models/quoted_item.dart';
+import '../../../domain/models/reaction_item.dart';
 import '../../../domain/repositories/i_chat_repository.dart';
+import '../../../domain/repositories/i_interaction_repository.dart';
 import '../../../domain/repositories/i_media_repository.dart';
+import 'conversation_interaction_handler.dart';
 
 /// Controller managing message history and dispatch for an active conversation.
 class ConversationController extends ChangeNotifier {
   final IChatRepository repository;
   final IMediaRepository? mediaRepository;
+  final IInteractionRepository? interactionRepository;
   final String chatJid;
   final List<MessageItem> _messages = [];
+  late final ConversationInteractionHandler _interactionHandler;
   StreamSubscription<MessageItem>? _messageSub;
   bool _isLoading = true;
 
@@ -17,16 +23,38 @@ class ConversationController extends ChangeNotifier {
     required this.repository,
     required this.chatJid,
     this.mediaRepository,
+    this.interactionRepository,
   }) {
+    _interactionHandler = ConversationInteractionHandler(
+      interactionRepository: interactionRepository,
+      chatJid: chatJid,
+      onStateChanged: notifyListeners,
+    );
     _init();
   }
 
   List<MessageItem> get messages => List.unmodifiable(_messages);
   bool get isLoading => _isLoading;
+  QuotedItem? get activeQuote => _interactionHandler.activeQuote;
+  List<ReactionItem> getReactions(String msgId) => _interactionHandler.getReactions(msgId);
+
+  void setReply(MessageItem msg) => _interactionHandler.setReply(msg);
+  void clearReply() => _interactionHandler.clearReply();
+  Future<void> react(MessageItem msg, String emoji) => _interactionHandler.react(msg, emoji);
+  Future<void> revokeMessage(MessageItem msg) => _interactionHandler.revokeMessage(msg);
+  Future<void> deleteForMe(MessageItem msg) => _interactionHandler.deleteForMe(msg);
+
+  Future<void> toggleStar(MessageItem msg) async {
+    final idx = _messages.indexWhere((m) => m.id == msg.id);
+    if (idx != -1) {
+      _messages[idx] = _messages[idx].copyWith(isStarred: !msg.isStarred);
+      notifyListeners();
+    }
+    await _interactionHandler.toggleStar(msg);
+  }
 
   Future<void> _init() async {
-    final cached = await repository.getMessages(chatJid);
-    _messages.addAll(cached);
+    _messages.addAll(await repository.getMessages(chatJid));
     _isLoading = false;
     notifyListeners();
 
@@ -52,6 +80,9 @@ class ConversationController extends ChangeNotifier {
     final trimmed = text.trim();
     if (trimmed.isEmpty) return;
 
+    final quote = _interactionHandler.activeQuote;
+    _interactionHandler.clearReply();
+
     final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
     final localMsg = MessageItem(
       id: tempId,
@@ -61,12 +92,13 @@ class ConversationController extends ChangeNotifier {
       timestamp: DateTime.now(),
       isFromMe: true,
       status: 'pending',
+      quoted: quote,
     );
     _messages.add(localMsg);
     notifyListeners();
 
     try {
-      await repository.sendMessage(chatJid, trimmed);
+      await repository.sendMessage(chatJid, trimmed, quoted: quote);
     } catch (_) {
       final idx = _messages.indexWhere((m) => m.id == tempId);
       if (idx != -1) {
@@ -110,6 +142,7 @@ class ConversationController extends ChangeNotifier {
   @override
   void dispose() {
     _messageSub?.cancel();
+    _interactionHandler.dispose();
     super.dispose();
   }
 }
