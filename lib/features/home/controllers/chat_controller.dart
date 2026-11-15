@@ -2,10 +2,12 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../../../domain/chat.dart';
 import '../../../domain/chat_repository.dart';
+import '../../../domain/repositories/i_media_repository.dart';
 
 /// State management controller for desktop chat navigation and search.
 class ChatController extends ChangeNotifier {
   final IChatRepository chatRepository;
+  final IMediaRepository? mediaRepository;
   StreamSubscription<List<Chat>>? _subscription;
 
   List<Chat> _allChats = const [];
@@ -13,7 +15,10 @@ class ChatController extends ChangeNotifier {
   String _searchQuery = '';
   bool _isLoading = true;
 
-  ChatController({required this.chatRepository}) {
+  ChatController({
+    required this.chatRepository,
+    this.mediaRepository,
+  }) {
     _init();
   }
 

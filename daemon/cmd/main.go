@@ -75,70 +75,11 @@ func main() {
 			continue
 		}
 
-		go handleRequest(ctx, req, client, writer)
+		go HandleRequest(ctx, req, client, writer)
 	}
 
 	if err := scanner.Err(); err != nil {
 		fmt.Fprintf(os.Stderr, "stdin scanner error: %v\n", err)
-	}
-}
-
-func handleRequest(ctx context.Context, req ipc.Request, client wa.Client, writer ipc.Writer) {
-	switch req.Action {
-	case ipc.ActionLogin:
-		if err := client.Login(ctx); err != nil {
-			_ = writer.WriteResponse(ipc.Response{ID: req.ID, Error: err.Error()})
-		} else {
-			_ = writer.WriteResponse(ipc.Response{
-				ID:     req.ID,
-				Result: map[string]string{"status": "connecting"},
-			})
-		}
-	case ipc.ActionGetStatus:
-		status := client.GetStatus()
-		_ = writer.WriteResponse(ipc.Response{ID: req.ID, Result: status})
-	case ipc.ActionSendMessage:
-		chatJID, _ := req.Params["chat_jid"].(string)
-		text, _ := req.Params["text"].(string)
-		if chatJID == "" || text == "" {
-			_ = writer.WriteResponse(ipc.Response{ID: req.ID, Error: "missing chat_jid or text"})
-			return
-		}
-		msgID, err := client.SendMessage(ctx, chatJID, text)
-		if err != nil {
-			_ = writer.WriteResponse(ipc.Response{ID: req.ID, Error: err.Error()})
-		} else {
-			_ = writer.WriteResponse(ipc.Response{
-				ID:     req.ID,
-				Result: map[string]string{"id": msgID, "status": "sent"},
-			})
-		}
-	case ipc.ActionGetMessages:
-		chatJID, _ := req.Params["chat_jid"].(string)
-		if chatJID != "" {
-			_ = client.RequestHistory(ctx, chatJID)
-		}
-		_ = writer.WriteResponse(ipc.Response{ID: req.ID, Result: map[string]bool{"requested": true}})
-	case ipc.ActionMarkAsRead:
-		chatJID, _ := req.Params["jid"].(string)
-		if chatJID != "" {
-			_ = client.MarkChatAsRead(ctx, chatJID)
-		}
-		_ = writer.WriteResponse(ipc.Response{ID: req.ID, Result: map[string]bool{"success": true}})
-	case ipc.ActionLogout:
-		if err := client.Logout(ctx); err != nil {
-			_ = writer.WriteResponse(ipc.Response{ID: req.ID, Error: err.Error()})
-		} else {
-			_ = writer.WriteResponse(ipc.Response{
-				ID:     req.ID,
-				Result: map[string]bool{"success": true},
-			})
-		}
-	default:
-		_ = writer.WriteResponse(ipc.Response{
-			ID:    req.ID,
-			Error: fmt.Sprintf("unsupported action: %s", req.Action),
-		})
 	}
 }
 

@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 import '../../../domain/chat.dart';
 import '../../../domain/repositories/i_chat_repository.dart';
+import '../../../domain/repositories/i_media_repository.dart';
 import '../../../theme/app_colors.dart';
 import '../controllers/conversation_controller.dart';
 import 'chat_header.dart';
@@ -12,11 +13,13 @@ import 'message_input_bar.dart';
 class ChatConversationView extends StatefulWidget {
   final Chat chat;
   final IChatRepository repository;
+  final IMediaRepository? mediaRepository;
 
   const ChatConversationView({
     super.key,
     required this.chat,
     required this.repository,
+    this.mediaRepository,
   });
 
   @override
@@ -36,6 +39,7 @@ class _ChatConversationViewState extends State<ChatConversationView> {
   void _initController() {
     _controller = ConversationController(
       repository: widget.repository,
+      mediaRepository: widget.mediaRepository,
       chatJid: widget.chat.jid,
     );
     _controller.addListener(_scrollToBottom);
@@ -96,7 +100,22 @@ class _ChatConversationViewState extends State<ChatConversationView> {
                   controller: _scrollController,
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   itemCount: msgs.length,
-                  itemBuilder: (context, i) => MessageBubble(message: msgs[i]),
+                  itemBuilder: (context, i) {
+                    final msg = msgs[i];
+                    return MessageBubble(
+                      message: msg,
+                      onMediaTap: () => MediaViewerDialog.show(
+                        context,
+                        title: msg.fileName ?? widget.chat.name,
+                        subtitle: widget.chat.name,
+                        mediaType: msg.mediaType,
+                        localPath: msg.localPath,
+                        onDownload: () => _controller.downloadMedia(msg),
+                      ),
+                      onOpen: () => _controller.openMedia(msg),
+                      onDownload: () => _controller.downloadMedia(msg),
+                    );
+                  },
                 );
               },
             ),

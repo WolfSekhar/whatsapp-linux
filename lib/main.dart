@@ -6,6 +6,7 @@ import 'core/ipc/daemon_process_manager.dart';
 import 'core/ipc/ipc_service.dart';
 import 'domain/repositories/auth_repository.dart';
 import 'domain/repositories/chat_repository.dart';
+import 'domain/repositories/media_repository.dart';
 import 'features/auth/controllers/auth_controller.dart';
 import 'features/auth/ui/auth_screen.dart';
 import 'features/home/controllers/chat_controller.dart';
@@ -25,9 +26,13 @@ Future<void> main() async {
 
   final authRepo = AuthRepository(ipcService);
   final chatRepo = ChatRepository(ipcService);
+  final mediaRepo = MediaRepository(ipcService);
 
   final authController = AuthController(authRepository: authRepo);
-  final chatController = ChatController(chatRepository: chatRepo);
+  final chatController = ChatController(
+    chatRepository: chatRepo,
+    mediaRepository: mediaRepo,
+  );
 
   runApp(
     WhatsAppLinuxApp(

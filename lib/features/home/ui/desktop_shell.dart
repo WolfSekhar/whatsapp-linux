@@ -43,6 +43,7 @@ class DesktopShell extends StatelessWidget {
                 return ChatConversationView(
                   chat: chat,
                   repository: controller.chatRepository,
+                  mediaRepository: controller.mediaRepository,
                 );
               },
             ),

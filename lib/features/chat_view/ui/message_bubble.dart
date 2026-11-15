@@ -2,27 +2,48 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:material_ui/material_ui.dart';
 import '../../../domain/models/message_item.dart';
 import '../../../theme/app_colors.dart';
+import 'media/media_bubble_router.dart';
 
-/// WhatsApp-styled speech bubble displaying message body, timestamp, and status.
+/// WhatsApp-styled speech bubble supporting text and rich media attachments.
 class MessageBubble extends StatelessWidget {
   final MessageItem message;
   final VoidCallback? onMediaTap;
+  final VoidCallback? onOpen;
+  final VoidCallback? onDownload;
 
   const MessageBubble({
     super.key,
     required this.message,
     this.onMediaTap,
+    this.onOpen,
+    this.onDownload,
   });
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isMe = message.isFromMe;
+    final hasMedia = message.mediaType != null && message.mediaType!.isNotEmpty;
+    final isSticker = message.mediaType == 'sticker';
+
+    if (isSticker) {
+      return Align(
+        alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
+          child: MediaBubbleRouter(
+            message: message,
+            onMediaTap: onMediaTap,
+            onOpen: onOpen,
+            onDownload: onDownload,
+          ),
+        ),
+      );
+    }
 
     final bubbleBg = isMe
         ? (isDark ? const Color(0xFF005C4B) : const Color(0xFFD9FDD3))
         : (isDark ? AppColors.darkPanel : AppColors.lightPanel);
-
     final textColor = isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
     final timeColor = isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
 
@@ -51,13 +72,21 @@ class MessageBubble extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                message.text,
-                style: TextStyle(fontSize: 14, color: textColor, height: 1.3),
+            if (hasMedia)
+              MediaBubbleRouter(
+                message: message,
+                onMediaTap: onMediaTap,
+                onOpen: onOpen,
+                onDownload: onDownload,
+              )
+            else
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  message.text,
+                  style: TextStyle(fontSize: 14, color: textColor, height: 1.3),
+                ),
               ),
-            ),
             const SizedBox(height: 2),
             Row(
               mainAxisSize: MainAxisSize.min,

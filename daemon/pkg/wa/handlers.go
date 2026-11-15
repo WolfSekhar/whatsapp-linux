@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 
-	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 
@@ -12,7 +11,8 @@ import (
 )
 
 // RegisterEventHandlers registers event listeners on whatsmeow client to forward events to IPC writer.
-func RegisterEventHandlers(cli *whatsmeow.Client, writer ipc.Writer) {
+func RegisterEventHandlers(mgr *ClientManager, writer ipc.Writer) {
+	cli := mgr.cli
 	cli.AddEventHandler(func(rawEvt interface{}) {
 		switch evt := rawEvt.(type) {
 		case *events.Connected:
@@ -35,10 +35,10 @@ func RegisterEventHandlers(cli *whatsmeow.Client, writer ipc.Writer) {
 			_, _ = os.Stderr.WriteString("whatsmeow stream error: " + evt.Code + "\n")
 
 		case *events.HistorySync:
-			handleHistorySync(cli, evt, writer)
+			handleHistorySync(mgr, evt, writer)
 
 		case *events.Message:
-			handleIncomingMessage(evt, writer)
+			HandleIncomingMessage(mgr, evt, writer)
 
 		case *events.Receipt:
 			HandleReceipt(evt, writer)
@@ -50,10 +50,11 @@ func RegisterEventHandlers(cli *whatsmeow.Client, writer ipc.Writer) {
 }
 
 // handleHistorySync processes chat conversations history sync and unwraps recent messages.
-func handleHistorySync(cli *whatsmeow.Client, evt *events.HistorySync, writer ipc.Writer) {
+func handleHistorySync(mgr *ClientManager, evt *events.HistorySync, writer ipc.Writer) {
 	if evt.Data == nil {
 		return
 	}
+	cli := mgr.cli
 	ctx := context.Background()
 	conversations := evt.Data.GetConversations()
 	chats := make([]ipc.ChatSummary, 0, len(conversations))
@@ -78,17 +79,32 @@ func handleHistorySync(cli *whatsmeow.Client, evt *events.HistorySync, writer ip
 						lastTs = uint64(parsedEvt.Info.Timestamp.Unix())
 					}
 					status := HistoryMessageStatus(historyMsg.GetMessage(), unreadCount, uint32(totalMsgs-1-i))
+					ctxInfo := ExtractContextInfo(parsedEvt.Message)
+					media := ExtractMediaAttachment(parsedEvt.Message)
+					if media != nil && mgr != nil {
+						mgr.RegisterDownloadable(parsedEvt.Info.ID, media.Downloadable, media.MimeType, media.FileName)
+					}
+					data := ipc.MessageData{
+						ID:        parsedEvt.Info.ID,
+						ChatJID:   conv.GetID(),
+						SenderJID: parsedEvt.Info.Sender.String(),
+						Timestamp: parsedEvt.Info.Timestamp.UnixMilli(),
+						Body:      text,
+						FromMe:    parsedEvt.Info.IsFromMe,
+						Status:    status,
+						Quoted:    ParseQuotedMessage(ctxInfo),
+					}
+					if media != nil {
+						data.MediaType = media.MediaType
+						data.FileName = media.FileName
+						data.FileSize = media.FileSize
+						data.MimeType = media.MimeType
+						data.Duration = media.Duration
+						data.ThumbnailBase64 = media.ThumbnailBase64
+					}
 					_ = writer.WriteEvent(ipc.Event{
 						Event: ipc.EventMessage,
-						Data: ipc.MessageData{
-							ID:        parsedEvt.Info.ID,
-							ChatJID:   conv.GetID(),
-							SenderJID: parsedEvt.Info.Sender.String(),
-							Timestamp: parsedEvt.Info.Timestamp.UnixMilli(),
-							Body:      text,
-							FromMe:    parsedEvt.Info.IsFromMe,
-							Status:    status,
-						},
+						Data:  data,
 					})
 				}
 			}
@@ -110,31 +126,6 @@ func handleHistorySync(cli *whatsmeow.Client, evt *events.HistorySync, writer ip
 		Data: ipc.ChatSyncData{
 			TotalChats: len(chats),
 			Chats:      chats,
-		},
-	})
-}
-
-// handleIncomingMessage extracts text content and emits a message event.
-func handleIncomingMessage(evt *events.Message, writer ipc.Writer) {
-	evt.UnwrapRaw()
-	body := ExtractMessageText(evt.Message)
-	if body == "" {
-		return
-	}
-	status := "unread"
-	if evt.Info.IsFromMe {
-		status = "sent"
-	}
-	_ = writer.WriteEvent(ipc.Event{
-		Event: ipc.EventMessage,
-		Data: ipc.MessageData{
-			ID:        evt.Info.ID,
-			ChatJID:   evt.Info.Chat.String(),
-			SenderJID: evt.Info.Sender.String(),
-			Timestamp: evt.Info.Timestamp.UnixMilli(),
-			Body:      body,
-			FromMe:    evt.Info.IsFromMe,
-			Status:    status,
 		},
 	})
 }

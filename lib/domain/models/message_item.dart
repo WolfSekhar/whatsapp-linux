@@ -1,3 +1,6 @@
+import 'message_item_mapper.dart';
+import 'quoted_item.dart';
+
 /// Represents a WhatsApp message in a conversation.
 class MessageItem {
   final String id;
@@ -7,6 +10,16 @@ class MessageItem {
   final DateTime timestamp;
   final bool isFromMe;
   final String status;
+  final QuotedItem? quoted;
+  final bool isStarred;
+  final bool isRevoked;
+  final String? mediaType;
+  final String? fileName;
+  final int? fileSize;
+  final String? mimeType;
+  final String? localPath;
+  final String? thumbnailBase64;
+  final int? duration;
 
   const MessageItem({
     required this.id,
@@ -16,53 +29,22 @@ class MessageItem {
     required this.timestamp,
     required this.isFromMe,
     this.status = 'sent',
+    this.quoted,
+    this.isStarred = false,
+    this.isRevoked = false,
+    this.mediaType,
+    this.fileName,
+    this.fileSize,
+    this.mimeType,
+    this.localPath,
+    this.thumbnailBase64,
+    this.duration,
   });
 
-  factory MessageItem.fromJson(Map<String, dynamic> json) {
-    final rawTs = json['timestamp'] ?? json['time'];
-    DateTime timestamp;
-    if (rawTs is int) {
-      timestamp = DateTime.fromMillisecondsSinceEpoch(
-        rawTs > 100000000000 ? rawTs : rawTs * 1000,
-      );
-    } else if (rawTs is String) {
-      timestamp = DateTime.tryParse(rawTs) ??
-          DateTime.fromMillisecondsSinceEpoch(0);
-    } else {
-      timestamp = DateTime.fromMillisecondsSinceEpoch(0);
-    }
+  factory MessageItem.fromJson(Map<String, dynamic> json) =>
+      MessageItemMapper.fromJson(json);
 
-    return MessageItem(
-      id: json['id'] as String? ?? '',
-      chatJid: json['chatJid'] as String? ??
-          json['chat_jid'] as String? ??
-          '',
-      senderJid: json['senderJid'] as String? ??
-          json['sender_jid'] as String? ??
-          '',
-      text: json['text'] as String? ??
-          json['body'] as String? ??
-          '',
-      timestamp: timestamp,
-      isFromMe: (json['isFromMe'] ??
-              json['from_me'] ??
-              json['is_from_me'] as bool?) ??
-          false,
-      status: json['status'] as String? ?? 'sent',
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'chatJid': chatJid,
-      'senderJid': senderJid,
-      'text': text,
-      'timestamp': timestamp.millisecondsSinceEpoch,
-      'isFromMe': isFromMe,
-      'status': status,
-    };
-  }
+  Map<String, dynamic> toJson() => MessageItemMapper.toJson(this);
 
   MessageItem copyWith({
     String? id,
@@ -72,6 +54,16 @@ class MessageItem {
     DateTime? timestamp,
     bool? isFromMe,
     String? status,
+    QuotedItem? quoted,
+    bool? isStarred,
+    bool? isRevoked,
+    String? mediaType,
+    String? fileName,
+    int? fileSize,
+    String? mimeType,
+    String? localPath,
+    String? thumbnailBase64,
+    int? duration,
   }) {
     return MessageItem(
       id: id ?? this.id,
@@ -81,6 +73,16 @@ class MessageItem {
       timestamp: timestamp ?? this.timestamp,
       isFromMe: isFromMe ?? this.isFromMe,
       status: status ?? this.status,
+      quoted: quoted ?? this.quoted,
+      isStarred: isStarred ?? this.isStarred,
+      isRevoked: isRevoked ?? this.isRevoked,
+      mediaType: mediaType ?? this.mediaType,
+      fileName: fileName ?? this.fileName,
+      fileSize: fileSize ?? this.fileSize,
+      mimeType: mimeType ?? this.mimeType,
+      localPath: localPath ?? this.localPath,
+      thumbnailBase64: thumbnailBase64 ?? this.thumbnailBase64,
+      duration: duration ?? this.duration,
     );
   }
 
@@ -91,24 +93,14 @@ class MessageItem {
           runtimeType == other.runtimeType &&
           id == other.id &&
           chatJid == other.chatJid &&
-          senderJid == other.senderJid &&
-          text == other.text &&
-          timestamp == other.timestamp &&
-          isFromMe == other.isFromMe &&
+          localPath == other.localPath &&
+          isStarred == other.isStarred &&
+          isRevoked == other.isRevoked &&
           status == other.status;
 
   @override
-  int get hashCode => Object.hash(
-        id,
-        chatJid,
-        senderJid,
-        text,
-        timestamp,
-        isFromMe,
-        status,
-      );
+  int get hashCode => Object.hash(id, chatJid, isStarred, isRevoked, status);
 
   @override
-  String toString() =>
-      'MessageItem(id: $id, chatJid: $chatJid, text: $text)';
+  String toString() => 'MessageItem(id: $id, type: $mediaType, text: $text)';
 }

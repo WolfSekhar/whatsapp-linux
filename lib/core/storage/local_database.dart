@@ -32,7 +32,7 @@ class LocalDatabase {
     return await dbFactory.openDatabase(
       dbPath,
       options: OpenDatabaseOptions(
-        version: 1,
+        version: 3,
         onCreate: (db, version) async {
           await db.execute('''
             CREATE TABLE IF NOT EXISTS chats (
@@ -42,7 +42,10 @@ class LocalDatabase {
               last_message_timestamp INTEGER NOT NULL,
               unread_count INTEGER NOT NULL DEFAULT 0,
               avatar_url TEXT,
-              is_group INTEGER NOT NULL DEFAULT 0
+              is_group INTEGER NOT NULL DEFAULT 0,
+              is_pinned INTEGER NOT NULL DEFAULT 0,
+              is_archived INTEGER NOT NULL DEFAULT 0,
+              mute_until INTEGER NOT NULL DEFAULT 0
             )
           ''');
 
@@ -55,17 +58,74 @@ class LocalDatabase {
               timestamp INTEGER NOT NULL,
               is_from_me INTEGER NOT NULL DEFAULT 0,
               status TEXT NOT NULL DEFAULT 'sent',
+              quoted_id TEXT,
+              quoted_sender TEXT,
+              quoted_text TEXT,
+              is_starred INTEGER NOT NULL DEFAULT 0,
+              is_revoked INTEGER NOT NULL DEFAULT 0,
               media_type TEXT,
-              media_url TEXT
+              media_url TEXT,
+              file_name TEXT,
+              file_size INTEGER,
+              mime_type TEXT,
+              local_path TEXT,
+              thumbnail TEXT,
+              duration INTEGER
+            )
+          ''');
+
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS message_reactions (
+              msg_id TEXT NOT NULL,
+              sender_jid TEXT NOT NULL,
+              emoji TEXT NOT NULL,
+              timestamp INTEGER NOT NULL,
+              PRIMARY KEY (msg_id, sender_jid)
             )
           ''');
 
           await db.execute(
             'CREATE INDEX IF NOT EXISTS idx_msg_chat ON messages(chat_jid, timestamp DESC)',
           );
+          await db.execute(
+            'CREATE INDEX IF NOT EXISTS idx_reaction_msg ON message_reactions(msg_id)',
+          );
+        },
+        onUpgrade: (db, oldVersion, newVersion) async {
+          if (oldVersion < 2) {
+            await _runSafe(db, 'ALTER TABLE messages ADD COLUMN file_name TEXT');
+            await _runSafe(db, 'ALTER TABLE messages ADD COLUMN file_size INTEGER');
+            await _runSafe(db, 'ALTER TABLE messages ADD COLUMN mime_type TEXT');
+            await _runSafe(db, 'ALTER TABLE messages ADD COLUMN local_path TEXT');
+            await _runSafe(db, 'ALTER TABLE messages ADD COLUMN thumbnail TEXT');
+            await _runSafe(db, 'ALTER TABLE messages ADD COLUMN duration INTEGER');
+          }
+          if (oldVersion < 3) {
+            await _runSafe(db, 'ALTER TABLE messages ADD COLUMN quoted_id TEXT');
+            await _runSafe(db, 'ALTER TABLE messages ADD COLUMN quoted_sender TEXT');
+            await _runSafe(db, 'ALTER TABLE messages ADD COLUMN quoted_text TEXT');
+            await _runSafe(db, 'ALTER TABLE messages ADD COLUMN is_starred INTEGER NOT NULL DEFAULT 0');
+            await _runSafe(db, 'ALTER TABLE messages ADD COLUMN is_revoked INTEGER NOT NULL DEFAULT 0');
+            await db.execute('''
+              CREATE TABLE IF NOT EXISTS message_reactions (
+                msg_id TEXT NOT NULL,
+                sender_jid TEXT NOT NULL,
+                emoji TEXT NOT NULL,
+                timestamp INTEGER NOT NULL,
+                PRIMARY KEY (msg_id, sender_jid)
+              )
+            ''');
+            await db.execute('CREATE INDEX IF NOT EXISTS idx_reaction_msg ON message_reactions(msg_id)');
+          }
         },
       ),
     );
+  }
+
+  static Future<void> _runSafe(Database db, String sql) async {
+    try {
+      await db.execute(sql);
+    } catch (_) {}
   }
 
   /// Closes database connection.

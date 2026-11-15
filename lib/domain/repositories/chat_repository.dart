@@ -5,7 +5,9 @@ import '../../core/storage/chat_dao.dart';
 import '../../core/storage/message_dao.dart';
 import '../models/chat_item.dart';
 import '../models/message_item.dart';
+import '../models/quoted_item.dart';
 import 'chat_event_handler.dart';
+import 'chat_mutation_handler.dart';
 import 'i_chat_repository.dart';
 
 /// Concrete implementation of [IChatRepository] communicating via IPC and SQLite cache.
@@ -14,6 +16,7 @@ class ChatRepository implements IChatRepository {
   final ChatDao _chatDao;
   final MessageDao _messageDao;
   final ChatEventHandler _eventHandler;
+  final ChatMutationHandler _mutationHandler;
   final List<ChatItem> _chats = [];
   final StreamController<List<ChatItem>> _chatsController =
       StreamController<List<ChatItem>>.broadcast();
@@ -26,10 +29,17 @@ class ChatRepository implements IChatRepository {
     ChatDao? chatDao,
     MessageDao? messageDao,
     ChatEventHandler? eventHandler,
+    ChatMutationHandler? mutationHandler,
   })  : _chatDao = chatDao ?? ChatDao(),
         _messageDao = messageDao ?? MessageDao(),
         _eventHandler = eventHandler ??
             ChatEventHandler(
+              chatDao: chatDao ?? ChatDao(),
+              messageDao: messageDao ?? MessageDao(),
+            ),
+        _mutationHandler = mutationHandler ??
+            ChatMutationHandler(
+              ipcService: _ipcService,
               chatDao: chatDao ?? ChatDao(),
               messageDao: messageDao ?? MessageDao(),
             ) {
@@ -85,8 +95,14 @@ class ChatRepository implements IChatRepository {
   }
 
   @override
-  Future<void> sendMessage(String chatJid, String text) async {
-    await _ipcService.sendRequest('send_message', {'chat_jid': chatJid, 'text': text});
+  Future<void> sendMessage(String chatJid, String text, {QuotedItem? quoted}) async {
+    final params = <String, dynamic>{'chat_jid': chatJid, 'text': text};
+    if (quoted != null) {
+      params['quoted_id'] = quoted.id;
+      params['quoted_sender'] = quoted.senderJid;
+      params['quoted_text'] = quoted.text;
+    }
+    await _ipcService.sendRequest('send_message', params);
   }
 
   @override
@@ -102,6 +118,26 @@ class ChatRepository implements IChatRepository {
       await _ipcService.sendRequest('mark_as_read', {'jid': jid});
     } catch (_) {}
   }
+
+  @override
+  Future<void> pinChat(String jid, bool pin) =>
+      _mutationHandler.pinChat(_chats, _chatsController, jid, pin);
+
+  @override
+  Future<void> archiveChat(String jid, bool archive) =>
+      _mutationHandler.archiveChat(_chats, _chatsController, jid, archive);
+
+  @override
+  Future<void> muteChat(String jid, {int durationSeconds = 0, bool mute = true}) =>
+      _mutationHandler.muteChat(_chats, _chatsController, jid, durationSeconds, mute);
+
+  @override
+  Future<void> clearChat(String jid) =>
+      _mutationHandler.clearChat(_chats, _chatsController, jid);
+
+  @override
+  Future<void> deleteChat(String jid) =>
+      _mutationHandler.deleteChat(_chats, _chatsController, jid);
 
   @override
   void dispose() {

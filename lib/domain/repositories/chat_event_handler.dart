@@ -3,14 +3,21 @@ import '../../core/ipc/ipc_message.dart';
 import '../../core/storage/chat_dao.dart';
 import '../../core/storage/message_dao.dart';
 import '../models/chat_item.dart';
+import '../models/chat_sorter.dart';
 import '../models/message_item.dart';
+import 'chat_appstate_handler.dart';
 
 /// Handles inbound IPC chat events and updates memory and SQLite stores.
 class ChatEventHandler {
   final ChatDao chatDao;
   final MessageDao messageDao;
+  final ChatAppstateHandler appstateHandler;
 
-  const ChatEventHandler({required this.chatDao, required this.messageDao});
+  ChatEventHandler({
+    required this.chatDao,
+    required this.messageDao,
+    ChatAppstateHandler? appstateHandler,
+  }) : appstateHandler = appstateHandler ?? ChatAppstateHandler(chatDao: chatDao);
 
   void handleIpcEvent({
     required IpcEvent event,
@@ -18,42 +25,39 @@ class ChatEventHandler {
     required StreamController<List<ChatItem>> chatsController,
     required StreamController<MessageItem> messageController,
   }) {
+    final data = event.data is Map ? Map<String, dynamic>.from(event.data as Map) : null;
     switch (event.event) {
       case 'chat_sync':
-        final raw = event.data is Map ? (event.data as Map)['chats'] : event.data;
-        applyChats(chats, raw, chatsController);
+        applyChats(chats, event.data is Map ? (event.data as Map)['chats'] : event.data, chatsController);
         break;
       case 'message':
-        if (event.data is Map) {
-          applyMessage(chats, Map<String, dynamic>.from(event.data as Map),
-              chatsController, messageController);
-        }
+        if (data != null) applyMessage(chats, data, chatsController, messageController);
         break;
       case 'chat_read':
-        if (event.data is Map) {
-          applyChatRead(chats, Map<String, dynamic>.from(event.data as Map),
-              chatsController);
-        }
+        if (data != null) applyChatRead(chats, data, chatsController);
         break;
       case 'receipt':
-        if (event.data is Map) {
-          applyReceipt(chats, Map<String, dynamic>.from(event.data as Map),
-              chatsController);
-        }
+        if (data != null) applyReceipt(chats, data, chatsController);
+        break;
+      case 'chat_pin':
+        if (data != null) appstateHandler.applyPin(chats, data, chatsController);
+        break;
+      case 'chat_archive':
+        if (data != null) appstateHandler.applyArchive(chats, data, chatsController);
+        break;
+      case 'chat_mute':
+        if (data != null) appstateHandler.applyMute(chats, data, chatsController);
         break;
     }
   }
 
-  void applyChats(List<ChatItem> chats, dynamic rawList,
-      StreamController<List<ChatItem>> controller) {
+  void applyChats(List<ChatItem> chats, dynamic rawList, StreamController<List<ChatItem>> controller) {
     if (rawList is! List) return;
     chats.clear();
     for (final item in rawList) {
-      if (item is Map) {
-        chats.add(ChatItem.fromJson(Map<String, dynamic>.from(item)));
-      }
+      if (item is Map) chats.add(ChatItem.fromJson(Map<String, dynamic>.from(item)));
     }
-    chats.sort((a, b) => b.lastMessageTimestamp.compareTo(a.lastMessageTimestamp));
+    sortChats(chats);
     chatDao.saveChats(chats);
     controller.add(List.unmodifiable(chats));
   }
@@ -88,12 +92,11 @@ class ChatEventHandler {
       chats.insert(0, newChat);
       chatDao.saveChat(newChat);
     }
-    chats.sort((a, b) => b.lastMessageTimestamp.compareTo(a.lastMessageTimestamp));
+    sortChats(chats);
     chatsController.add(List.unmodifiable(chats));
   }
 
-  void applyChatRead(List<ChatItem> chats, Map<String, dynamic> data,
-      StreamController<List<ChatItem>> controller) {
+  void applyChatRead(List<ChatItem> chats, Map<String, dynamic> data, StreamController<List<ChatItem>> controller) {
     final chatJid = data['chat_jid'] as String? ?? '';
     final isRead = data['read'] as bool? ?? true;
     if (chatJid.isEmpty) return;
@@ -110,29 +113,22 @@ class ChatEventHandler {
     }
 
     final rawIds = data['message_ids'];
-    final List<String>? msgIds =
-        rawIds is List ? rawIds.map((e) => e.toString()).toList() : null;
-    if (isRead) {
-      messageDao.markMessagesAsRead(chatJid, msgIds);
-    }
+    final List<String>? msgIds = rawIds is List ? rawIds.map((e) => e.toString()).toList() : null;
+    if (isRead) messageDao.markMessagesAsRead(chatJid, msgIds);
   }
 
-  void applyReceipt(List<ChatItem> chats, Map<String, dynamic> data,
-      StreamController<List<ChatItem>> controller) {
+  void applyReceipt(List<ChatItem> chats, Map<String, dynamic> data, StreamController<List<ChatItem>> controller) {
     final chatJid = data['chat_jid'] as String? ?? '';
     final type = data['type'] as String? ?? '';
     final fromMe = data['from_me'] as bool? ?? false;
     final rawIds = data['message_ids'];
-    final List<String>? msgIds =
-        rawIds is List ? rawIds.map((e) => e.toString()).toList() : null;
+    final List<String>? msgIds = rawIds is List ? rawIds.map((e) => e.toString()).toList() : null;
 
     final isRead = type == 'read' || type == 'read-self' || type == 'played';
     if (fromMe && isRead) {
       applyChatRead(chats, {'chat_jid': chatJid, 'read': true, 'message_ids': msgIds}, controller);
       return;
     }
-    if (isRead && chatJid.isNotEmpty) {
-      messageDao.markMessagesAsRead(chatJid, msgIds);
-    }
+    if (isRead && chatJid.isNotEmpty) messageDao.markMessagesAsRead(chatJid, msgIds);
   }
 }

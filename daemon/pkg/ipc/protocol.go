@@ -1,6 +1,6 @@
 package ipc
 
-// Standard RPC Actions from Flutter
+// Standard RPC Actions and Outbound Events
 const (
 	ActionLogin       = "login"
 	ActionGetStatus   = "get_status"
@@ -8,17 +8,22 @@ const (
 	ActionSendMessage = "send_message"
 	ActionGetMessages = "get_messages"
 	ActionMarkAsRead  = "mark_as_read"
-)
+	ActionPinChat     = "pin_chat"
+	ActionArchiveChat = "archive_chat"
+	ActionMuteChat    = "mute_chat"
+	ActionClearChat   = "clear_chat"
+	ActionDeleteChat  = "delete_chat"
 
-// Standard Outbound Event Types to Flutter
-const (
-	EventQR        = "qr"
-	EventConnected = "connected"
-	EventLoggedOut = "logged_out"
-	EventChatSync  = "chat_sync"
-	EventMessage   = "message"
-	EventReceipt   = "receipt"
-	EventChatRead  = "chat_read"
+	EventQR          = "qr"
+	EventConnected   = "connected"
+	EventLoggedOut   = "logged_out"
+	EventChatSync    = "chat_sync"
+	EventMessage     = "message"
+	EventReceipt     = "receipt"
+	EventChatRead    = "chat_read"
+	EventChatPin     = "chat_pin"
+	EventChatArchive = "chat_archive"
+	EventChatMute    = "chat_mute"
 )
 
 // Request is the inbound JSON-RPC message from Flutter.
@@ -41,41 +46,44 @@ type Event struct {
 	Data  interface{} `json:"data,omitempty"`
 }
 
-// StatusResult is the payload returned by get_status action.
 type StatusResult struct {
 	LoggedIn  bool   `json:"logged_in"`
 	Connected bool   `json:"connected"`
 	JID       string `json:"jid,omitempty"`
 }
 
-// QRData is the payload for the "qr" event.
 type QRData struct {
 	Code           string `json:"code"`
 	TimeoutSeconds int    `json:"timeout_seconds"`
 }
 
-// ConnectedData is the payload for the "connected" event.
 type ConnectedData struct {
 	JID string `json:"jid"`
 }
 
-// LoggedOutData is the payload for the "logged_out" event.
 type LoggedOutData struct {
 	Reason string `json:"reason,omitempty"`
 }
 
-// MessageData is the payload for the "message" event.
 type MessageData struct {
-	ID        string `json:"id"`
-	ChatJID   string `json:"chat_jid"`
-	SenderJID string `json:"sender_jid"`
-	Timestamp int64  `json:"timestamp"`
-	Body      string `json:"body"`
-	FromMe    bool   `json:"from_me"`
-	Status    string `json:"status,omitempty"`
+	ID              string             `json:"id"`
+	ChatJID         string             `json:"chat_jid"`
+	SenderJID       string             `json:"sender_jid"`
+	Timestamp       int64              `json:"timestamp"`
+	Body            string             `json:"body"`
+	FromMe          bool               `json:"from_me"`
+	Status          string             `json:"status,omitempty"`
+	Quoted          *QuotedMessageData `json:"quoted,omitempty"`
+	IsRevoked       bool               `json:"is_revoked,omitempty"`
+	MediaType       string             `json:"media_type,omitempty"`
+	MediaURL        string             `json:"media_url,omitempty"`
+	ThumbnailBase64 string             `json:"thumbnail_base64,omitempty"`
+	FileSize        int64              `json:"file_size,omitempty"`
+	MimeType        string             `json:"mime_type,omitempty"`
+	FileName        string             `json:"file_name,omitempty"`
+	Duration        uint32             `json:"duration,omitempty"`
 }
 
-// ReceiptData is the payload for the "receipt" event.
 type ReceiptData struct {
 	ChatJID    string   `json:"chat_jid"`
 	SenderJID  string   `json:"sender_jid,omitempty"`
@@ -83,29 +91,4 @@ type ReceiptData struct {
 	Timestamp  int64    `json:"timestamp"`
 	Type       string   `json:"type"`
 	FromMe     bool     `json:"from_me"`
-}
-
-// ChatReadData is the payload for the "chat_read" event.
-type ChatReadData struct {
-	ChatJID    string   `json:"chat_jid"`
-	Timestamp  int64    `json:"timestamp"`
-	Read       bool     `json:"read"`
-	MessageIDs []string `json:"message_ids,omitempty"`
-}
-
-// ChatSummary represents basic chat info for chat sync.
-type ChatSummary struct {
-	JID           string `json:"jid"`
-	Name          string `json:"name"`
-	UnreadCount   uint32 `json:"unread_count"`
-	LastTimestamp uint64 `json:"last_timestamp"`
-	LastMessage   string `json:"last_message,omitempty"`
-	Archived      bool   `json:"archived"`
-	Pinned        uint32 `json:"pinned"`
-}
-
-// ChatSyncData is the payload for the "chat_sync" event.
-type ChatSyncData struct {
-	TotalChats int           `json:"total_chats"`
-	Chats      []ChatSummary `json:"chats"`
 }

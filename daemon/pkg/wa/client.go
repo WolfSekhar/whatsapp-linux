@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"go.mau.fi/whatsmeow"
 	waStore "go.mau.fi/whatsmeow/store"
@@ -19,15 +20,27 @@ type Client interface {
 	Disconnect()
 	GetStatus() ipc.StatusResult
 	SendMessage(ctx context.Context, targetJID, text string) (string, error)
+	SendQuotedMessage(ctx context.Context, targetJID, text, quotedID, quotedSender, quotedText string) (string, error)
+	SendReaction(ctx context.Context, chatJID, senderJID, targetMsgID, emoji string) error
+	RevokeMessage(ctx context.Context, chatJID, senderJID, msgID string) error
+	StarMessage(ctx context.Context, chatJID, senderJID, msgID string, fromMe, isStarred bool) error
 	RequestHistory(ctx context.Context, targetJID string) error
 	MarkChatAsRead(ctx context.Context, targetJID string) error
+	PinChat(ctx context.Context, targetJID string, pin bool) error
+	ArchiveChat(ctx context.Context, targetJID string, archive bool) error
+	MuteChat(ctx context.Context, targetJID string, mute bool, muteDuration time.Duration) error
+	ClearChat(ctx context.Context, targetJID string) error
+	DeleteChat(ctx context.Context, targetJID string) error
+	DownloadMedia(ctx context.Context, chatJID, msgID string) (*ipc.DownloadMediaResult, error)
+	SendMedia(ctx context.Context, params ipc.SendMediaParams) (*ipc.SendMediaResult, error)
 }
 
 // ClientManager wraps whatsmeow.Client with thread safety and event dispatching.
 type ClientManager struct {
-	mu     sync.Mutex
-	cli    *whatsmeow.Client
-	writer ipc.Writer
+	mu         sync.Mutex
+	cli        *whatsmeow.Client
+	writer     ipc.Writer
+	mediaCache *MediaCache
 }
 
 // NewClientManager instantiates and initializes a new ClientManager.
@@ -36,9 +49,20 @@ func NewClientManager(deviceStore *waStore.Device, writer ipc.Writer, log waLog.
 		log = waLog.Noop
 	}
 	cli := whatsmeow.NewClient(deviceStore, log)
-	mgr := &ClientManager{cli: cli, writer: writer}
-	RegisterEventHandlers(cli, writer)
+	mgr := &ClientManager{
+		cli:        cli,
+		writer:     writer,
+		mediaCache: NewMediaCache(2000),
+	}
+	RegisterEventHandlers(mgr, writer)
 	return mgr
+}
+
+// RegisterDownloadable stores downloadable media metadata in the cache for on-demand fetching.
+func (m *ClientManager) RegisterDownloadable(msgID string, d whatsmeow.DownloadableMessage, mime, name string) {
+	if m.mediaCache != nil && d != nil {
+		m.mediaCache.Put(msgID, CachedMedia{Downloadable: d, MimeType: mime, FileName: name})
+	}
 }
 
 // Login connects to WhatsApp, streaming QR codes if unauthenticated.

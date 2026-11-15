@@ -2,10 +2,12 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../../../domain/models/message_item.dart';
 import '../../../domain/repositories/i_chat_repository.dart';
+import '../../../domain/repositories/i_media_repository.dart';
 
 /// Controller managing message history and dispatch for an active conversation.
 class ConversationController extends ChangeNotifier {
   final IChatRepository repository;
+  final IMediaRepository? mediaRepository;
   final String chatJid;
   final List<MessageItem> _messages = [];
   StreamSubscription<MessageItem>? _messageSub;
@@ -14,6 +16,7 @@ class ConversationController extends ChangeNotifier {
   ConversationController({
     required this.repository,
     required this.chatJid,
+    this.mediaRepository,
   }) {
     _init();
   }
@@ -69,6 +72,37 @@ class ConversationController extends ChangeNotifier {
       if (idx != -1) {
         _messages[idx] = localMsg.copyWith(status: 'error');
         notifyListeners();
+      }
+    }
+  }
+
+  /// Downloads media attachment for [msg] and updates local message state.
+  Future<void> downloadMedia(MessageItem msg) async {
+    if (mediaRepository == null) return;
+    final path = await mediaRepository!.downloadMedia(
+      messageId: msg.id,
+      chatJid: chatJid,
+      mediaType: msg.mediaType,
+    );
+    if (path != null) {
+      final idx = _messages.indexWhere((m) => m.id == msg.id);
+      if (idx != -1) {
+        _messages[idx] = _messages[idx].copyWith(localPath: path);
+        notifyListeners();
+      }
+    }
+  }
+
+  /// Opens cached media with native desktop app or downloads then opens.
+  Future<void> openMedia(MessageItem msg) async {
+    if (mediaRepository == null) return;
+    if (msg.localPath != null && mediaRepository!.isFileAvailable(msg.localPath)) {
+      await mediaRepository!.openMediaFile(msg.localPath!);
+    } else {
+      await downloadMedia(msg);
+      final idx = _messages.indexWhere((m) => m.id == msg.id);
+      if (idx != -1 && _messages[idx].localPath != null) {
+        await mediaRepository!.openMediaFile(_messages[idx].localPath!);
       }
     }
   }

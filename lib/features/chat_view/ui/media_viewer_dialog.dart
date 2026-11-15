@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:material_ui/material_ui.dart';
 import '../../../theme/app_colors.dart';
@@ -7,12 +8,16 @@ class MediaViewerDialog extends StatelessWidget {
   final String title;
   final String? subtitle;
   final String? mediaType;
+  final String? localPath;
+  final VoidCallback? onDownload;
 
   const MediaViewerDialog({
     super.key,
     required this.title,
     this.subtitle,
     this.mediaType,
+    this.localPath,
+    this.onDownload,
   });
 
   static Future<void> show(
@@ -20,17 +25,20 @@ class MediaViewerDialog extends StatelessWidget {
     required String title,
     String? subtitle,
     String? mediaType,
-  }) {
-    return showDialog<void>(
-      context: context,
-      barrierDismissible: true,
-      builder: (context) => MediaViewerDialog(
-        title: title,
-        subtitle: subtitle,
-        mediaType: mediaType,
-      ),
-    );
-  }
+    String? localPath,
+    VoidCallback? onDownload,
+  }) =>
+      showDialog<void>(
+        context: context,
+        barrierDismissible: true,
+        builder: (_) => MediaViewerDialog(
+          title: title,
+          subtitle: subtitle,
+          mediaType: mediaType,
+          localPath: localPath,
+          onDownload: onDownload,
+        ),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -43,7 +51,7 @@ class MediaViewerDialog extends StatelessWidget {
       insetPadding: const EdgeInsets.all(24),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 700, maxHeight: 520),
+        constraints: const BoxConstraints(maxWidth: 800, maxHeight: 600),
         child: Column(
           children: [
             _buildTopBar(context, cardBg, isDark),
@@ -57,6 +65,7 @@ class MediaViewerDialog extends StatelessWidget {
 
   Widget _buildTopBar(BuildContext context, Color cardBg, bool isDark) {
     final isDoc = mediaType == 'document';
+    final textColor = isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       color: cardBg,
@@ -75,21 +84,16 @@ class MediaViewerDialog extends StatelessWidget {
               children: [
                 Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                 if (subtitle != null)
-                  Text(
-                    subtitle!,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
-                    ),
-                  ),
+                  Text(subtitle!, style: TextStyle(fontSize: 11, color: textColor)),
               ],
             ),
           ),
-          IconButton(
-            icon: const Icon(FluentIcons.arrow_download_24_regular, size: 20),
-            tooltip: 'Download',
-            onPressed: () {},
-          ),
+          if (onDownload != null)
+            IconButton(
+              icon: const Icon(FluentIcons.arrow_download_24_regular, size: 20),
+              tooltip: 'Download',
+              onPressed: onDownload,
+            ),
           IconButton(
             icon: const Icon(FluentIcons.dismiss_24_regular, size: 20),
             tooltip: 'Close',
@@ -101,7 +105,15 @@ class MediaViewerDialog extends StatelessWidget {
   }
 
   Widget _buildMediaContent(bool isDark) {
+    if (localPath != null && File(localPath!).existsSync() && mediaType == 'image') {
+      return InteractiveViewer(
+        minScale: 0.5,
+        maxScale: 4.0,
+        child: Center(child: Image.file(File(localPath!), fit: BoxFit.contain)),
+      );
+    }
     final isDoc = mediaType == 'document';
+    final textColor = isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -122,13 +134,8 @@ class MediaViewerDialog extends StatelessWidget {
           const SizedBox(height: 16),
           Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
           const SizedBox(height: 4),
-          Text(
-            'End-to-end encrypted media',
-            style: TextStyle(
-              fontSize: 12,
-              color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
-            ),
-          ),
+          Text(localPath ?? 'End-to-end encrypted media',
+              style: TextStyle(fontSize: 12, color: textColor)),
         ],
       ),
     );
