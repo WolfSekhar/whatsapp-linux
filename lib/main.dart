@@ -89,16 +89,16 @@ String _resolveDaemonPath() {
 class WhatsAppLinuxApp extends StatefulWidget {
   final AuthController authController;
   final ChatController chatController;
-  final SettingsController settingsController;
-  final StatusController statusController;
+  final SettingsController? settingsController;
+  final StatusController? statusController;
   final Future<void> Function() onDispose;
 
   const WhatsAppLinuxApp({
     super.key,
     required this.authController,
     required this.chatController,
-    required this.settingsController,
-    required this.statusController,
+    this.settingsController,
+    this.statusController,
     required this.onDispose,
   });
 
